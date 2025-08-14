@@ -16,10 +16,12 @@ FROM teams;
 
 
 -- 2. Find the name and height of the shortest player in the database. How many games did he play in? What is the name of the team for which he played? gaedeed01
-SELECT DISTINCT(namegiven),
+SELECT DISTINCT namefirst, 
+	namelast, 
+	namegiven,
 	height,
-	g_all,
-	name
+	g_all AS games_played,
+	name AS team_name
 FROM people
 INNER JOIN appearances 
 USING(playerid)
@@ -30,7 +32,7 @@ WHERE height = (SELECT
 				FROM people);
 
 -- 3. Find all players in the database who played at Vanderbilt University. Create a list showing each player’s first and last names as well as the total salary they earned in the major leagues. Sort this list in descending order by the total salary earned. Which Vanderbilt player earned the most money in the majors?
-SELECT DISTINCT playerid,
+SELECT DISTINCT
 	namefirst,
 	namelast,
 	SUM(salary::NUMERIC::MONEY) AS total_salary
@@ -107,7 +109,7 @@ ORDER BY playerid;
 -- 5. Find the average number of strikeouts per game by decade since 1920. Round the numbers you report to 2 decimal places. Do the same for home runs per game. Do you see any trends?
 WITH strikeout_table AS(
 	SELECT yearid,
-		FLOOR(yearid / 10) * 10 AS decade,
+		yearid / 10 * 10 AS decade,
 		so,
 		soa,
 		so + soa AS total_strikeouts, 
@@ -142,12 +144,15 @@ GROUP BY decade
 ORDER BY decade;
 
 -- 6. Find the player who had the most success stealing bases in 2016, where __success__ is measured as the percentage of stolen base attempts which are successful. (A stolen base attempt results either in a stolen base or being caught stealing.) Consider only players who attempted _at least_ 20 stolen bases.
-SELECT playerid,
+SELECT namefirst,
+	namelast,
 	yearid,
 	sb,
 	sb + cs AS sb_attempts,
-	sb::NUMERIC / (sb::NUMERIC + cs::NUMERIC) * 100 AS success_rate
+	ROUND(sb::NUMERIC / (sb::NUMERIC + cs::NUMERIC) * 100, 2) AS success_rate
 FROM batting
+JOIN people
+USING(playerid)
 WHERE yearid = 2016
 	AND (sb + cs) >=20
 ORDER BY success_rate DESC;
@@ -208,6 +213,33 @@ WHERE sp.round = 'WS'
     FROM teams AS t2
     WHERE t2.yearid = t.yearid);
 
+
+										--Kyle's Equation--
+WITH max_per_year AS (
+	SELECT
+		yearid,
+		MAX(w) max_wins
+	FROM
+		teams
+	WHERE 
+		yearid BETWEEN 1970 AND 2016
+	GROUP BY
+		yearid
+	ORDER BY
+		yearid
+)
+SELECT 
+	ROUND(((COUNT(yearid) / (2016-1970)::numeric)*100), 2) AS max_winner_percentage
+FROM
+	teams AS t
+INNER JOIN
+	max_per_year AS m
+	USING(yearid)
+WHERE 
+	yearid BETWEEN 1970 AND 2016
+	AND t.w = m.max_wins
+	AND wswin = 'Y';
+	
 -- 8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
 									--Part 1--
 SELECT DISTINCT year,
@@ -260,19 +292,54 @@ ORDER BY both_awards NULLS LAST)
 SELECT DISTINCT * FROM awards
 WHERE both_awards IS NOT NULL;
 
+								--Megan's Equation--
+
+SELECT DISTINCT
+    CONCAT(p.namefirst, ' ', p.namelast) AS manager_name,
+    STRING_AGG(
+    a.lgid || ' ' || a.yearid::text || ' (' || t.name || ')',
+    ', ' ORDER BY a.yearid
+  ) AS award_seasons
+FROM
+    awardsmanagers AS a
+JOIN people AS p ON a.playerid = p.playerid
+JOIN managers AS m ON a.playerid = m.playerid AND a.yearid = m.yearid AND a.lgid = m.lgid
+JOIN teams AS t ON m.teamid = t.teamid AND m.yearid = t.yearid AND m.lgid = t.lgid
+WHERE
+    a.awardid = 'TSN Manager of the Year'
+    AND a.lgid IN ('AL', 'NL') 
+    AND a.playerid IN (
+        SELECT playerid
+        FROM awardsmanagers
+        WHERE awardid = 'TSN Manager of the Year'
+		AND lgid IN ('AL', 'NL')
+        GROUP BY playerid
+		HAVING COUNT(DISTINCT lgid) = 2
+    )
+GROUP BY 
+	p.namefirst, p.namelast
+ORDER BY
+    manager_name, award_seasons;
+	
 -- 10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 SELECT b.yearid, 
 	p.namefirst,
 	p.namelast,
-	hr
+	hr AS home_runs
 FROM people AS p
 JOIN batting AS b
 USING(playerid)
 WHERE b.yearid = 2016
 	AND b.hr >=1
 	AND (SELECT MAX(hr) FROM batting WHERE playerid = p.playerid) = b.hr
-	AND (SELECT MAX(yearid) - MIN(yearid) FROM Batting WHERE playerid = p.playerid) >= 9;
-	
+	AND (SELECT MAX(yearid) - MIN(yearid) FROM Batting WHERE playerid = p.playerid) >= 9
+ORDER BY home_runs DESC;
+
+SELECT DISTINCT playerid
+FROM batting
+WHERE (SELECT MAX(yearid)-MIN(yearid) FROM BATTING) >= 9
+	AND hr >=1;
+
 -- **Open-ended questions**
 
 -- 11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.

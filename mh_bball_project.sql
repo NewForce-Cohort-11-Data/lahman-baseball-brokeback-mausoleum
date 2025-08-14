@@ -104,7 +104,7 @@ USING
   (playerid)
 WHERE 
   yearid = 2016 
-   AND sb >= 20
+   AND (sb+cs) >= 20
 ORDER BY 
   stealing_success DESC NULLS LAST;
 

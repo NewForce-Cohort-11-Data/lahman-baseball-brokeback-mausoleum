@@ -69,13 +69,7 @@ GROUP BY
 
 SELECT
   FLOOR(yearid / 10) * 10 AS decade,
-  ROUND(
-    CASE 
-        WHEN SUM(g) = 0 THEN NULL
-        ELSE SUM(so+soa)::numeric / SUM(g)
-    END,
-    2
-) AS avg_so_per_game
+  ROUND(SUM(so) / SUM(g)::NUMERIC, 2) AS avg_so_per_game
 FROM
   teams
 WHERE
@@ -87,13 +81,7 @@ ORDER BY
 
 SELECT
   FLOOR(yearid / 10) * 10 AS decade,
-  ROUND(
-    CASE 
-        WHEN SUM(g) = 0 THEN NULL
-        ELSE SUM(hr)::numeric / SUM(g)
-    END,
-    2
-) AS avg_hr_per_game
+  ROUND(SUM(hr) / SUM(g)::NUMERIC, 2) AS avg_hr_per_game
 FROM
   teams
 WHERE
@@ -107,7 +95,7 @@ ORDER BY
 
 SELECT 
   CONCAT(namefirst, ' ', namelast) AS player_name,
-  ROUND((sb:: NUMERIC /NULLIF(sb+cs, 0))*100, 2) AS stealing_success
+  ROUND(sb:: NUMERIC /(sb+cs)*100, 2) AS stealing_success
 FROM 
   batting
 JOIN
